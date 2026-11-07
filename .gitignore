@@ -1,0 +1,10 @@
+bin/
+obj/
+clientapp/node_modules/
+clientapp/dist/
+appsettings.Development.json
+.DS_Store
+*.db
+.env*
+clientapp/tsconfig.tsbuildinfo
+usedcarprices/

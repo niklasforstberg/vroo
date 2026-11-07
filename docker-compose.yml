@@ -1,0 +1,22 @@
+services:
+  vroo:
+    build: .
+    container_name: vroo
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5106:8080"
+    env_file:
+      - /home/deploy/.env.vroo
+    environment:
+      - TZ=Europe/Stockholm
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8080' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - db-network
+
+networks:
+  db-network:
+    external: true

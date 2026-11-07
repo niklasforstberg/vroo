@@ -1,0 +1,9 @@
+clientapp/node_modules
+clientapp/dist
+obj/
+bin/
+.git/
+.claude/
+usedcarprices/
+appsettings.Development.json
+*.md
