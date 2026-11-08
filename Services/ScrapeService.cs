@@ -15,6 +15,9 @@ public class ScrapeService(VrooDbContext db, BytbilClient bytbil, ILogger<Scrape
     // A fixed floor doesn't work: a real 1999 Avensis sells for 15 000 kr.
     private const double MinShareOfMedian = 0.05;
 
+    // A listing page that failed this many times is given up on (one try per run).
+    private const int MaxDetailAttempts = 3;
+
     public static readonly TimeZoneInfo Stockholm = TimeZoneInfo.FindSystemTimeZoneById("Europe/Stockholm");
 
     public async Task RunAsync(int watchedModelId, string trigger, CancellationToken ct)
@@ -105,16 +108,17 @@ public class ScrapeService(VrooDbContext db, BytbilClient bytbil, ILogger<Scrape
                     Title = listing.Title,
                     Price = listing.Price,
                     FirstSeenAt = now,
-                    RegistrationNumber = details?.RegistrationNumber,
-                    Color = details?.Color,
-                    DriveType = details?.DriveType,
-                    Gearbox = details?.Gearbox,
-                    BodyType = details?.BodyType,
                 };
+                ApplyDetails(car, details, now);
                 car.Prices.Add(new CarPrice { Price = listing.Price, ObservedAt = now });
                 db.Cars.Add(car);
                 run.NewCars++;
             }
+        }
+        else if (car.DetailsFetchedAt is null && car.DetailAttempts < MaxDetailAttempts && !seen.Contains(car.Id))
+        {
+            // An earlier fetch of the listing page failed; try again.
+            ApplyDetails(car, await bytbil.GetDetailsAsync(listing.Url, ct), now);
         }
 
         if (car.Id != 0 && !seen.Add(car.Id)) return; // listed twice as pages shifted
@@ -141,6 +145,21 @@ public class ScrapeService(VrooDbContext db, BytbilClient bytbil, ILogger<Scrape
 
         if (sightedToday.Add(car.Id))
             db.Sightings.Add(new Sighting { CarId = car.Id, Date = today });
+    }
+
+    private static void ApplyDetails(Car car, ListingDetails? details, DateTime now)
+    {
+        if (details is null)
+        {
+            car.DetailAttempts++;
+            return;
+        }
+        car.RegistrationNumber = details.RegistrationNumber;
+        car.Color = details.Color;
+        car.DriveType = details.DriveType;
+        car.Gearbox = details.Gearbox;
+        car.BodyType = details.BodyType;
+        car.DetailsFetchedAt = now;
     }
 
     /// <summary>

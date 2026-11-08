@@ -21,7 +21,7 @@ Dev-databas: `vroo_dev` (owner `vroo`) på z390, nås via Tailscale. `Scrape:Ena
 ## Arkitektur
 
 - `Services/BytbilClient.cs` — hämtar och parsar söksidor och annonssidor (AngleSharp). Varje anrop föregås av en slumpad paus på 2–9 s. Var snäll mot servern; ta inte bort pausen.
-- `Services/ScrapeService.cs` — en körning för en modell: alla resultatsidor, ny annons → hämta detaljsidan (regnr m.m.), matchar omlistade bilar på regnr, skriver `CarPrice` vid första observation och varje prisändring, och `DailyStat` när körningen lyckats.
+- `Services/ScrapeService.cs` — en körning för en modell: alla resultatsidor, ny annons → hämta detaljsidan (regnr m.m.; misslyckas den görs nya försök vid kommande körningar, högst 3 totalt, via `DetailsFetchedAt`/`DetailAttempts`), matchar omlistade bilar på regnr, skriver `CarPrice` vid första observation och varje prisändring, och `DailyStat` när körningen lyckats.
 - `Services/ScrapeScheduler.cs` — singleton/BackgroundService med en kö så att bara en skrapning körs åt gången. Dagligt schema + catch-up om senaste schemalagda körning är > 26 h gammal (t.ex. efter deploy).
 - `Services/SqliteImporter.cs` — engångsimport. Gamla `price_history` lagrade *föregående* pris vid ändring; importen bygger om serien. Importerade modeller blir pausade.
 - Datamodell, en källa per fakta:

@@ -36,6 +36,12 @@ namespace Vroo.Migrations
                     b.Property<string>("Color")
                         .HasColumnType("text");
 
+                    b.Property<int>("DetailAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("DetailsFetchedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("DriveType")
                         .HasColumnType("text");
 

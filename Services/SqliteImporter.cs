@@ -85,6 +85,11 @@ public static partial class SqliteImporter
                 Color = o.Color, DriveType = o.DriveType, Gearbox = o.Gearbox, BodyType = o.BodyType,
                 FirstSeenAt = o.FirstSeen, LastSeenAt = o.LastSeen,
             };
+            // The old script stored nothing when the listing page failed; let new runs retry those.
+            if (o.Regnr is null && o.Color is null && o.DriveType is null && o.Gearbox is null && o.BodyType is null)
+                car.DetailAttempts = 1;
+            else
+                car.DetailsFetchedAt = o.FirstSeen;
             car.Prices.AddRange(PriceSeries(o, history.GetValueOrDefault(o.Id) ?? []));
             db.Cars.Add(car);
         }

@@ -38,6 +38,10 @@ public class Car
     public string? DriveType { get; set; }
     public string? Gearbox { get; set; }
     public string? BodyType { get; set; }
+    /// <summary>When the listing page (regnr, specs) was fetched; null until a fetch succeeds.</summary>
+    public DateTime? DetailsFetchedAt { get; set; }
+    /// <summary>Failed listing-page fetches. Later runs retry until this reaches the limit in ScrapeService.</summary>
+    public int DetailAttempts { get; set; }
 
     public DateTime FirstSeenAt { get; set; }
     public DateTime LastSeenAt { get; set; }
