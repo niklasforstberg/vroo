@@ -10,6 +10,11 @@ public class ScrapeService(VrooDbContext db, BytbilClient bytbil, ILogger<Scrape
     // Safety net against a pagination loop; at 24 per page this is ~2 400 listings.
     private const int MaxPages = 100;
 
+    // Prices below this share of the model's median are leasing/monthly amounts or placeholders
+    // posted as a price (e.g. a 2023 Model Y "for" 1 000 kr). Kept as observed, left out of stats.
+    // A fixed floor doesn't work: a real 1999 Avensis sells for 15 000 kr.
+    private const double MinShareOfMedian = 0.05;
+
     public static readonly TimeZoneInfo Stockholm = TimeZoneInfo.FindSystemTimeZoneById("Europe/Stockholm");
 
     public async Task RunAsync(int watchedModelId, string trigger, CancellationToken ct)
@@ -167,10 +172,15 @@ public class ScrapeService(VrooDbContext db, BytbilClient bytbil, ILogger<Scrape
             db.DailyStats.Add(stat);
         }
 
+        var prices = rows.Where(r => r.Price.HasValue).Select(r => r.Price!.Value).ToList();
+        var floor = PriceFloor(Median(prices));
         stat.Listings = rows.Count;
-        stat.MedianPrice = Median(rows.Where(r => r.Price.HasValue).Select(r => r.Price!.Value)) ?? 0;
+        stat.MedianPrice = Median(prices.Where(p => p >= floor)) ?? 0;
         stat.MedianMileageMil = Median(rows.Where(r => r.MileageMil.HasValue).Select(r => r.MileageMil!.Value));
     }
+
+    /// <summary>Lowest plausible price given a model's median; 0 when there is no median yet.</summary>
+    public static int PriceFloor(int? median) => (int)((median ?? 0) * MinShareOfMedian);
 
     public static DateOnly StockholmDate(DateTime utc) =>
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(utc, Stockholm));

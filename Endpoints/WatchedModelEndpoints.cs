@@ -82,8 +82,9 @@ public static class WatchedModelEndpoints
         api.MapGet("/models/{id:int}/cars", async (int id, VrooDbContext db, CancellationToken ct) =>
         {
             var listedSince = await ListedSinceAsync(db, id, ct);
+            var floor = await PriceFloorAsync(db, id, ct);
             var cars = await CarQuery(db.Cars.Where(c => c.WatchedModelId == id)
-                    .OrderByDescending(c => c.LastSeenAt).ThenByDescending(c => c.FirstSeenAt), listedSince)
+                    .OrderByDescending(c => c.LastSeenAt).ThenByDescending(c => c.FirstSeenAt), listedSince, floor)
                 .ToListAsync(ct);
             return Results.Ok(cars);
         });
@@ -93,7 +94,8 @@ public static class WatchedModelEndpoints
             var c = await db.Cars.Include(c => c.Prices).FirstOrDefaultAsync(c => c.Id == id, ct);
             if (c is null) return Results.NotFound();
             var listedSince = await ListedSinceAsync(db, c.WatchedModelId, ct);
-            var car = await CarQuery(db.Cars.Where(x => x.Id == id), listedSince).FirstAsync(ct);
+            var floor = await PriceFloorAsync(db, c.WatchedModelId, ct);
+            var car = await CarQuery(db.Cars.Where(x => x.Id == id), listedSince, floor).FirstAsync(ct);
             return Results.Ok(new CarDetailResponse(car, c.Color, c.BodyType,
                 c.Prices.OrderBy(p => p.ObservedAt).Select(p => new CarPriceResponse(p.Price, p.ObservedAt)).ToList()));
         });
@@ -111,7 +113,12 @@ public static class WatchedModelEndpoints
             .Where(r => r.WatchedModelId == watchedModelId && r.FinishedAt != null && r.Error == null)
             .MaxAsync(r => (DateTime?)r.StartedAt, ct);
 
-    private static IQueryable<CarResponse> CarQuery(IQueryable<Car> cars, DateTime? listedSince) =>
+    // Same floor as the stats, from the model's latest median.
+    private static async Task<int> PriceFloorAsync(VrooDbContext db, int watchedModelId, CancellationToken ct) =>
+        ScrapeService.PriceFloor(await db.DailyStats.Where(s => s.WatchedModelId == watchedModelId)
+            .OrderByDescending(s => s.Date).Select(s => (int?)s.MedianPrice).FirstOrDefaultAsync(ct));
+
+    private static IQueryable<CarResponse> CarQuery(IQueryable<Car> cars, DateTime? listedSince, int priceFloor) =>
         cars.Select(c => new CarResponse(
             c.Id, c.Title, c.Url, c.ImageUrl, c.RegistrationNumber,
             c.Year, c.MileageMil, c.Location, c.Gearbox, c.DriveType,
@@ -119,7 +126,8 @@ public static class WatchedModelEndpoints
             c.Prices.OrderBy(p => p.ObservedAt).Select(p => p.Price).FirstOrDefault(),
             c.Prices.Count() - 1,
             c.FirstSeenAt, c.LastSeenAt,
-            listedSince != null && c.LastSeenAt >= listedSince));
+            listedSince != null && c.LastSeenAt >= listedSince,
+            c.Price >= priceFloor));
 
     private static async Task<Dictionary<int, ScrapeRunResponse>> LastRunsAsync(VrooDbContext db, CancellationToken ct, int? onlyId = null)
     {

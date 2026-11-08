@@ -28,6 +28,7 @@ Dev-databas: `vroo_dev` (owner `vroo`) på z390, nås via Tailscale. `Scrape:Ena
   - `CarPrice` — enda källan för pris: en rad vid första observation och vid varje ändring. `Car.Price` är en cache av senaste raden och skrivs på samma ställe.
   - `Sighting (CarId, Date)` — enda källan för närvaro: bilen var till salu den dagen (svenskt datum). Inget pris; priset en dag slås upp i `CarPrice`. Skrivs även av ofullständiga körningar, eftersom observationerna är sanna.
   - `DailyStat` — cache räknad ur Sightings + CarPrices (`ScrapeService.WriteDailyStatAsync`) efter varje lyckad körning; kan räknas om. Miltal saknar historik, så medianmiltal bygger på nuvarande värde.
+  - Orimliga priser: under 5 % av modellens median (leasingbelopp, platshållare som "1 000 kr"). Sparas som observerade men räknas inte med i medianpris, prisspann eller scatter. Regeln är relativ eftersom en riktig gammal bil kan kosta 15 000 kr (`ScrapeService.PriceFloor`).
   - Importerade sightings är uppskattade (gamla databasen sparade inte vad varje körning såg).
 - "Till salu" = bilen sågs i modellens senaste lyckade körning (`LastSeenAt >= StartedAt`).
 - Inloggning: ett enda lösenord (`Auth:Password`) → JWT (30 dagar). Ingen användartabell.

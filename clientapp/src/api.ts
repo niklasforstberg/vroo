@@ -88,6 +88,7 @@ export interface Car {
   firstSeenAt: string
   lastSeenAt: string
   isListed: boolean
+  plausiblePrice: boolean
 }
 
 export interface CarDetail {

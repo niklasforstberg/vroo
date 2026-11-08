@@ -40,7 +40,9 @@ public record CarResponse(
     int Price, int FirstPrice, int PriceChanges,
     DateTime FirstSeenAt, DateTime LastSeenAt,
     // Seen in the model's most recent successful run.
-    bool IsListed);
+    bool IsListed,
+    // False for leasing amounts and placeholders posted as a price; left out of stats.
+    bool PlausiblePrice);
 
 /// <summary>A price observation.</summary>
 public record CarPriceResponse(int Price, DateTime ObservedAt);

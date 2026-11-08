@@ -30,6 +30,8 @@ export default function ModelPage() {
   const [selected, setSelected] = useState<number | null>(null)
 
   const listed = useMemo(() => cars.data?.filter(c => c.isListed) ?? [], [cars.data])
+  // Leasing amounts and placeholders would wreck the price range and the scatter's y-axis.
+  const priced = useMemo(() => listed.filter(c => c.plausiblePrice), [listed])
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase()
     const base = (showAll ? cars.data ?? [] : listed).filter(c =>
@@ -47,7 +49,7 @@ export default function ModelPage() {
 
   const { model: m, stats } = detail.data
   const change = pct(m.medianPrice30DaysAgo, m.medianPrice)
-  const scatter = listed.filter(c => c.mileageMil != null).map(c => ({
+  const scatter = priced.filter(c => c.mileageMil != null).map(c => ({
     id: c.id, mileage: c.mileageMil!, price: c.price, title: c.title, year: c.year,
   }))
   const th = (key: SortKey, label: string) => (
@@ -83,7 +85,7 @@ export default function ModelPage() {
         <div className="card tile">
           <div className="stat-label">Lägsta / högsta pris</div>
           <div className="stat-value small-value">
-            {listed.length ? `${kkr(Math.min(...listed.map(c => c.price)))} – ${kkr(Math.max(...listed.map(c => c.price)))}` : '–'}
+            {priced.length ? `${kkr(Math.min(...priced.map(c => c.price)))} – ${kkr(Math.max(...priced.map(c => c.price)))}` : '–'}
           </div>
         </div>
         <div className="card tile">
@@ -150,7 +152,10 @@ export default function ModelPage() {
                   </td>
                   <td className="num">{c.year ?? '–'}</td>
                   <td className="num">{num(c.mileageMil)}</td>
-                  <td className="num">{kr(c.price)}</td>
+                  <td className={`num ${c.plausiblePrice ? '' : 'muted'}`}
+                    title={c.plausiblePrice ? undefined : 'Orimligt lågt, troligen ett månadsbelopp. Räknas inte med i statistiken.'}>
+                    {kr(c.price)}{!c.plausiblePrice && ' *'}
+                  </td>
                   <td className={`num ${c.price < c.firstPrice ? 'down' : c.price > c.firstPrice ? 'up' : 'muted'}`}>
                     {c.price === c.firstPrice ? '–' : signedPct(pct(c.firstPrice, c.price)!)}
                   </td>
