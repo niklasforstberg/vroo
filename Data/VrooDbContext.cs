@@ -8,6 +8,7 @@ public class VrooDbContext(DbContextOptions<VrooDbContext> options) : DbContext(
     public DbSet<WatchedModel> WatchedModels => Set<WatchedModel>();
     public DbSet<Car> Cars => Set<Car>();
     public DbSet<CarPrice> CarPrices => Set<CarPrice>();
+    public DbSet<Sighting> Sightings => Set<Sighting>();
     public DbSet<ScrapeRun> ScrapeRuns => Set<ScrapeRun>();
     public DbSet<DailyStat> DailyStats => Set<DailyStat>();
 
@@ -32,6 +33,13 @@ public class VrooDbContext(DbContextOptions<VrooDbContext> options) : DbContext(
         {
             e.HasIndex(x => new { x.CarId, x.ObservedAt });
             e.HasOne(x => x.Car).WithMany(x => x.Prices).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Sighting>(e =>
+        {
+            e.HasKey(x => new { x.CarId, x.Date });
+            e.HasIndex(x => x.Date);
+            e.HasOne(x => x.Car).WithMany(x => x.Sightings).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<ScrapeRun>(e =>

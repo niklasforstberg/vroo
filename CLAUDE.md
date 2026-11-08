@@ -24,6 +24,11 @@ Dev-databas: `vroo_dev` (owner `vroo`) på z390, nås via Tailscale. `Scrape:Ena
 - `Services/ScrapeService.cs` — en körning för en modell: alla resultatsidor, ny annons → hämta detaljsidan (regnr m.m.), matchar omlistade bilar på regnr, skriver `CarPrice` vid första observation och varje prisändring, och `DailyStat` när körningen lyckats.
 - `Services/ScrapeScheduler.cs` — singleton/BackgroundService med en kö så att bara en skrapning körs åt gången. Dagligt schema + catch-up om senaste schemalagda körning är > 26 h gammal (t.ex. efter deploy).
 - `Services/SqliteImporter.cs` — engångsimport. Gamla `price_history` lagrade *föregående* pris vid ändring; importen bygger om serien. Importerade modeller blir pausade.
+- Datamodell, en källa per fakta:
+  - `CarPrice` — enda källan för pris: en rad vid första observation och vid varje ändring. `Car.Price` är en cache av senaste raden och skrivs på samma ställe.
+  - `Sighting (CarId, Date)` — enda källan för närvaro: bilen var till salu den dagen (svenskt datum). Inget pris; priset en dag slås upp i `CarPrice`. Skrivs även av ofullständiga körningar, eftersom observationerna är sanna.
+  - `DailyStat` — cache räknad ur Sightings + CarPrices (`ScrapeService.WriteDailyStatAsync`) efter varje lyckad körning; kan räknas om. Miltal saknar historik, så medianmiltal bygger på nuvarande värde.
+  - Importerade sightings är uppskattade (gamla databasen sparade inte vad varje körning såg).
 - "Till salu" = bilen sågs i modellens senaste lyckade körning (`LastSeenAt >= StartedAt`).
 - Inloggning: ett enda lösenord (`Auth:Password`) → JWT (30 dagar). Ingen användartabell.
 - DTO:er i `Models/DTOs/`, entiteter returneras aldrig direkt.

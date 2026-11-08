@@ -23,6 +23,12 @@ public class ScrapeService(VrooDbContext db, BytbilClient bytbil, ILogger<Scrape
         logger.LogInformation("Scraping {Make} {Model} (run {RunId})", watched.Make, watched.Model, run.Id);
 
         var seen = new HashSet<int>();
+        var today = StockholmDate(run.StartedAt);
+        // A second run on the same day must not try to insert the same sightings again.
+        var sightedToday = (await db.Sightings
+                .Where(s => s.Date == today && s.Car.WatchedModelId == watched.Id)
+                .Select(s => s.CarId).ToListAsync(ct))
+            .ToHashSet();
         try
         {
             for (var page = 1; page <= MaxPages; page++)
@@ -36,13 +42,18 @@ public class ScrapeService(VrooDbContext db, BytbilClient bytbil, ILogger<Scrape
                 if (listings.Count == 0) break;
 
                 foreach (var listing in listings)
-                    await StoreAsync(watched.Id, listing, run, seen, ct);
+                    await StoreAsync(watched.Id, listing, run, seen, today, sightedToday, ct);
 
                 await db.SaveChangesAsync(ct);
             }
 
+            // Partial runs still record their sightings (they are true), but only a
+            // complete run may set the day's market snapshot.
             if (run.Error is null)
-                await WriteDailyStatAsync(watched.Id, run.StartedAt, ct);
+            {
+                await WriteDailyStatAsync(db, watched.Id, today, ct);
+                await db.SaveChangesAsync(ct);
+            }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -61,7 +72,8 @@ public class ScrapeService(VrooDbContext db, BytbilClient bytbil, ILogger<Scrape
             run.Id, run.CarsSeen, run.NewCars, run.PriceChanges, run.Error ?? "none");
     }
 
-    private async Task StoreAsync(int watchedModelId, ListingSummary listing, ScrapeRun run, HashSet<int> seen, CancellationToken ct)
+    private async Task StoreAsync(int watchedModelId, ListingSummary listing, ScrapeRun run, HashSet<int> seen,
+        DateOnly today, HashSet<int> sightedToday, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
         var car = await db.Cars.FirstOrDefaultAsync(c => c.Url == listing.Url, ct);
@@ -121,17 +133,33 @@ public class ScrapeService(VrooDbContext db, BytbilClient bytbil, ILogger<Scrape
             await db.SaveChangesAsync(ct); // get an Id so the seen-set can track it
             seen.Add(car.Id);
         }
+
+        if (sightedToday.Add(car.Id))
+            db.Sightings.Add(new Sighting { CarId = car.Id, Date = today });
     }
 
-    private async Task WriteDailyStatAsync(int watchedModelId, DateTime runStartedAt, CancellationToken ct)
+    /// <summary>
+    /// (Re)computes the day's snapshot from Sightings, with each car's price as of the end of
+    /// that day taken from CarPrices. Adds or updates the DailyStat; the caller saves.
+    /// Mileage is the car's current value; mileage has no history.
+    /// </summary>
+    public static async Task WriteDailyStatAsync(VrooDbContext db, int watchedModelId, DateOnly date, CancellationToken ct)
     {
-        var current = await db.Cars
-            .Where(c => c.WatchedModelId == watchedModelId && c.LastSeenAt >= runStartedAt)
-            .Select(c => new { c.Price, c.MileageMil })
+        var dayEndUtc = TimeZoneInfo.ConvertTimeToUtc(date.AddDays(1).ToDateTime(TimeOnly.MinValue), Stockholm);
+        var rows = await db.Sightings
+            .Where(s => s.Date == date && s.Car.WatchedModelId == watchedModelId)
+            .Select(s => new
+            {
+                Price = s.Car.Prices
+                    .Where(p => p.ObservedAt < dayEndUtc)
+                    .OrderByDescending(p => p.ObservedAt)
+                    .Select(p => (int?)p.Price)
+                    .FirstOrDefault(),
+                s.Car.MileageMil,
+            })
             .ToListAsync(ct);
-        if (current.Count == 0) return; // misspelt model or nothing for sale; a 0-median point would wreck the chart
+        if (rows.Count == 0) return; // misspelt model or nothing for sale; a 0-median point would wreck the chart
 
-        var date = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(runStartedAt, Stockholm));
         var stat = await db.DailyStats.FindAsync([watchedModelId, date], ct);
         if (stat is null)
         {
@@ -139,10 +167,13 @@ public class ScrapeService(VrooDbContext db, BytbilClient bytbil, ILogger<Scrape
             db.DailyStats.Add(stat);
         }
 
-        stat.Listings = current.Count;
-        stat.MedianPrice = Median(current.Select(c => c.Price)) ?? 0;
-        stat.MedianMileageMil = Median(current.Where(c => c.MileageMil.HasValue).Select(c => c.MileageMil!.Value));
+        stat.Listings = rows.Count;
+        stat.MedianPrice = Median(rows.Where(r => r.Price.HasValue).Select(r => r.Price!.Value)) ?? 0;
+        stat.MedianMileageMil = Median(rows.Where(r => r.MileageMil.HasValue).Select(r => r.MileageMil!.Value));
     }
+
+    public static DateOnly StockholmDate(DateTime utc) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(utc, Stockholm));
 
     public static int? Median(IEnumerable<int> values)
     {

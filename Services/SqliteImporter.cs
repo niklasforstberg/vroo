@@ -113,32 +113,31 @@ public static partial class SqliteImporter
             }
         }
 
-        // A car counts as listed at a run if it was first seen before the run ended
-        // (approximated as a day later) and last seen after it started.
-        var carsByModel = (await db.Cars.Include(c => c.Prices).AsNoTracking().ToListAsync())
+        await db.SaveChangesAsync();
+
+        // The old database never recorded which cars each run saw, so sightings are
+        // approximated: a car counts as for sale on a run day if it was first seen before
+        // the run ended (taken as a day later) and last seen after it started.
+        var carsByModel = (await db.Cars.AsNoTracking()
+                .Select(c => new { c.Id, c.WatchedModelId, c.FirstSeenAt, c.LastSeenAt }).ToListAsync())
             .ToLookup(c => c.WatchedModelId);
-        foreach (var day in runs.Where(r => r.Found > 0)
-                     .GroupBy(r => (r.Model, Date: DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(r.At, ScrapeService.Stockholm)))))
-        {
-            var at = day.Max(r => r.At);
-            var listed = carsByModel[day.Key.Model.Id]
-                .Where(c => c.FirstSeenAt <= at.AddDays(1) && c.LastSeenAt >= at)
-                .ToList();
-            if (listed.Count == 0) continue;
-            db.DailyStats.Add(new DailyStat
-            {
-                WatchedModelId = day.Key.Model.Id,
-                Date = day.Key.Date,
-                Listings = listed.Count,
-                MedianPrice = ScrapeService.Median(listed.Select(c => PriceAt(c, at.AddDays(1))))!.Value,
-                MedianMileageMil = ScrapeService.Median(listed.Where(c => c.MileageMil.HasValue).Select(c => c.MileageMil!.Value)),
-            });
-        }
+        var days = runs.Where(r => r.Found > 0)
+            .GroupBy(r => (ModelId: r.Model.Id, Date: ScrapeService.StockholmDate(r.At)))
+            .Select(g => (g.Key.ModelId, g.Key.Date, At: g.Max(r => r.At)))
+            .ToList();
+        foreach (var (modelId, date, at) in days)
+            foreach (var car in carsByModel[modelId].Where(c => c.FirstSeenAt <= at.AddDays(1) && c.LastSeenAt >= at))
+                db.Sightings.Add(new Sighting { CarId = car.Id, Date = date });
+        await db.SaveChangesAsync();
+
+        // Same computation as a live run, so imported and new days are comparable.
+        foreach (var (modelId, date, _) in days)
+            await ScrapeService.WriteDailyStatAsync(db, modelId, date, CancellationToken.None);
         await db.SaveChangesAsync();
 
         logger.LogInformation(
-            "Imported {Cars} cars, {Prices} price points, {Runs} runs, {Models} watched models (paused)",
-            oldCars.Count, await db.CarPrices.CountAsync(), runs.Count, models.Count);
+            "Imported {Cars} cars, {Prices} price points, {Sightings} sightings, {Runs} runs, {Models} watched models (paused)",
+            oldCars.Count, await db.CarPrices.CountAsync(), await db.Sightings.CountAsync(), runs.Count, models.Count);
     }
 
     // Old rows hold the price that was replaced at each change. Rebuild the series:
@@ -157,9 +156,6 @@ public static partial class SqliteImporter
             yield return new CarPrice { Price = next, ObservedAt = changes[i].At };
         }
     }
-
-    private static int PriceAt(Car car, DateTime at) =>
-        car.Prices.Where(p => p.ObservedAt <= at).OrderBy(p => p.ObservedAt).LastOrDefault()?.Price ?? car.Price;
 
     // The Python script stored naive local timestamps (datetime.now() on a Mac in Sweden).
     private static DateTime ToUtc(string local)

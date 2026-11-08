@@ -31,7 +31,7 @@ public class Car
     /// <summary>Swedish mil (10 km), as bytbil shows it.</summary>
     public int? MileageMil { get; set; }
     public string? Location { get; set; }
-    /// <summary>Current asking price in SEK.</summary>
+    /// <summary>Current asking price in SEK. A cache of the latest <see cref="CarPrice"/>, written alongside it.</summary>
     public int Price { get; set; }
     public string? ImageUrl { get; set; }
     public string? Color { get; set; }
@@ -43,6 +43,18 @@ public class Car
     public DateTime LastSeenAt { get; set; }
 
     public List<CarPrice> Prices { get; set; } = [];
+    public List<Sighting> Sightings { get; set; } = [];
+}
+
+/// <summary>
+/// The car was for sale on this day (Stockholm date). Presence only: the price that day
+/// comes from <see cref="CarPrice"/>, which is the single source for prices.
+/// </summary>
+public class Sighting
+{
+    public int CarId { get; set; }
+    public Car Car { get; set; } = null!;
+    public DateOnly Date { get; set; }
 }
 
 /// <summary>An asking price and when it was first observed. Written on first sighting and on every change.</summary>
@@ -71,7 +83,10 @@ public class ScrapeRun
     public string? Error { get; set; }
 }
 
-/// <summary>Market snapshot of a watched model on one day, written at the end of each successful run.</summary>
+/// <summary>
+/// Market snapshot of a watched model on one day. A cache computed from Sightings + CarPrices
+/// at the end of each successful run; it can be recomputed from them at any time.
+/// </summary>
 public class DailyStat
 {
     public int WatchedModelId { get; set; }

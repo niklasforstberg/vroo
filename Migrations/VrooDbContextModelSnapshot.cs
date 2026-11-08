@@ -176,6 +176,21 @@ namespace Vroo.Migrations
                     b.ToTable("ScrapeRuns");
                 });
 
+            modelBuilder.Entity("Vroo.Models.Sighting", b =>
+                {
+                    b.Property<int>("CarId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.HasKey("CarId", "Date");
+
+                    b.HasIndex("Date");
+
+                    b.ToTable("Sightings");
+                });
+
             modelBuilder.Entity("Vroo.Models.WatchedModel", b =>
                 {
                     b.Property<int>("Id")
@@ -252,9 +267,22 @@ namespace Vroo.Migrations
                     b.Navigation("WatchedModel");
                 });
 
+            modelBuilder.Entity("Vroo.Models.Sighting", b =>
+                {
+                    b.HasOne("Vroo.Models.Car", "Car")
+                        .WithMany("Sightings")
+                        .HasForeignKey("CarId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Car");
+                });
+
             modelBuilder.Entity("Vroo.Models.Car", b =>
                 {
                     b.Navigation("Prices");
+
+                    b.Navigation("Sightings");
                 });
 
             modelBuilder.Entity("Vroo.Models.WatchedModel", b =>
