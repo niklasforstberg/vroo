@@ -3,9 +3,51 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type Car } from '../api'
 import { ago, date, kkr, kr, num, pct, signedPct } from '../format'
-import { PriceMileageChart, TimeSeriesChart } from '../components/charts'
+import { CategoryBarChart, PriceMileageChart, TimeSeriesChart, type BarDatum } from '../components/charts'
 import StatusBadge from '../components/StatusBadge'
 import CarModal from '../components/CarModal'
+
+const DAY = 86_400_000
+const dayOf = (iso: string) => Math.floor(new Date(iso).getTime() / DAY)
+
+const median = (xs: number[]) => {
+  const s = [...xs].sort((a, b) => a - b), m = s.length >> 1
+  return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2)
+}
+
+/** Median asking price per model year, for the plausibly priced cars for sale. */
+function byYear(cars: Car[]): BarDatum[] {
+  const groups = new Map<number, number[]>()
+  for (const c of cars) if (c.year != null) groups.set(c.year, [...groups.get(c.year) ?? [], c.price])
+  return [...groups].sort(([a], [b]) => a - b).map(([year, prices]) => ({
+    label: String(year), value: median(prices),
+    rows: [['Medianpris', kr(median(prices))], ['Bilar', num(prices.length)],
+      ['Spann', `${kkr(Math.min(...prices))} – ${kkr(Math.max(...prices))}`]],
+  }))
+}
+
+// A car's time on market is only known when a run shortly before its first sighting
+// didn't see it, and a run shortly after its last sighting didn't either. Cars there on
+// the first run, or that vanished during a gap in the history, would give made-up numbers.
+const MAX_GAP_DAYS = 3
+const BUCKETS: [number, string][] = [[7, '0–7'], [14, '8–14'], [30, '15–30'], [60, '31–60'], [90, '61–90'], [180, '91–180'], [Infinity, '180+']]
+
+function timeOnMarket(cars: Car[], runDates: string[]): { days: number[]; buckets: BarDatum[] } {
+  const runs = runDates.map(dayOf).sort((a, b) => a - b)
+  const days: number[] = []
+  for (const c of cars) {
+    if (c.isListed) continue
+    const first = dayOf(c.firstSeenAt), last = dayOf(c.lastSeenAt)
+    const before = runs.filter(r => r < first).at(-1), after = runs.find(r => r > last)
+    if (before == null || after == null || first - before > MAX_GAP_DAYS || after - last > MAX_GAP_DAYS) continue
+    days.push(last - first)
+  }
+  const buckets = BUCKETS.map(([max, label], i) => {
+    const n = days.filter(d => d <= max && d > (i ? BUCKETS[i - 1][0] : -1)).length
+    return { label, value: n, rows: [['Bilar', num(n)]] as [string, string][] }
+  })
+  return { days, buckets }
+}
 
 type SortKey = 'price' | 'year' | 'mileageMil' | 'firstSeenAt' | 'change'
 
@@ -52,6 +94,8 @@ export default function ModelPage() {
   const scatter = priced.filter(c => c.mileageMil != null).map(c => ({
     id: c.id, mileage: c.mileageMil!, price: c.price, title: c.title, year: c.year,
   }))
+  const years = byYear(priced)
+  const market = timeOnMarket(cars.data ?? [], stats.map(s => s.date))
   const th = (key: SortKey, label: string) => (
     <th className="num sortable" onClick={() => setSort(s => ({ key, desc: s.key === key ? !s.desc : true }))}>
       {label}{sort.key === key ? (sort.desc ? ' ↓' : ' ↑') : ''}
@@ -115,6 +159,22 @@ export default function ModelPage() {
           <PriceMileageChart data={scatter} onSelect={setSelected} />
         </section>
       )}
+
+      <div className="chart-row">
+        <section className="card">
+          <h2>Medianpris per årsmodell <span className="muted small">· bilar till salu</span></h2>
+          {years.length
+            ? <CategoryBarChart data={years} axisFormat={kkr} title={d => `Årsmodell ${d.label}`} />
+            : <p className="muted empty">Inga bilar till salu med årsmodell.</p>}
+        </section>
+        <section className="card">
+          <h2>Liggtid {market.days.length > 0 && <span className="muted small">
+            · median {num(median(market.days))} dagar, {num(market.days.length)} borttagna annonser</span>}</h2>
+          {market.days.length
+            ? <CategoryBarChart data={market.buckets} axisFormat={num} title={d => `${d.label} dagar`} />
+            : <p className="muted empty">Visas när annonser har försvunnit under en period med dagliga körningar.</p>}
+        </section>
+      </div>
 
       <section className="card">
         <div className="table-head">

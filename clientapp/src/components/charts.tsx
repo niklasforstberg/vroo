@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  CartesianGrid, Line, LineChart, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis,
+  Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis,
 } from 'recharts'
 import { date, kkr, kr, num } from '../format'
 
@@ -116,6 +116,34 @@ export function PriceMileageChart({ data, onSelect }: { data: ScatterPoint[]; on
           isAnimationActive={false}
         />
       </ScatterChart>
+    </ResponsiveContainer>
+  )
+}
+
+export interface BarDatum { label: string; value: number; rows: [string, string][] }
+
+/** One measure per category (årsmodell, liggtid bucket). Single series, so no legend. */
+export function CategoryBarChart({ data, axisFormat, title }: {
+  data: BarDatum[]
+  axisFormat: (n: number) => string
+  title: (d: BarDatum) => string
+}) {
+  const c = useChartColors()
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 0 }} barCategoryGap={2}>
+        <CartesianGrid stroke={c.grid} vertical={false} />
+        <XAxis dataKey="label" interval="preserveStartEnd" minTickGap={8} {...axisProps(c.axis)} />
+        <YAxis width={64} tickFormatter={axisFormat} {...axisProps(c.axis)} />
+        <Tooltip
+          cursor={{ fill: c.grid }}
+          content={({ active, payload }) => {
+            const d = active && payload?.[0]?.payload as BarDatum | undefined
+            return d ? <TooltipBox title={title(d)} rows={d.rows} /> : null
+          }}
+        />
+        <Bar dataKey="value" fill={c.series} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+      </BarChart>
     </ResponsiveContainer>
   )
 }
