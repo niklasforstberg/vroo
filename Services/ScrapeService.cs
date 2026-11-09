@@ -91,11 +91,14 @@ public class ScrapeService(VrooDbContext db, BytbilClient bytbil, ILogger<Scrape
             // Unknown URL: fetch the listing page for registration number and specs.
             var details = await bytbil.GetDetailsAsync(listing.Url, ct);
 
-            // Same car relisted under a new URL?
+            // Same car relisted under a new URL? A match already seen in this run is still listed
+            // under its old URL: two ads for one car at once. Taking it over would flip the URL
+            // (and price) between the ads every run, so the second ad becomes a car of its own.
             if (details?.RegistrationNumber is { } regnr)
             {
+                var seenIds = seen.ToArray();
                 car = await db.Cars.FirstOrDefaultAsync(
-                    c => c.WatchedModelId == watchedModelId && c.RegistrationNumber == regnr, ct);
+                    c => c.WatchedModelId == watchedModelId && c.RegistrationNumber == regnr && !seenIds.Contains(c.Id), ct);
                 if (car is not null) car.Url = listing.Url;
             }
 
