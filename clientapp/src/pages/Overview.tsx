@@ -77,7 +77,8 @@ function ModelCard({ m, onChange }: { m: WatchedModel; onChange: () => void }) {
     <div className={`card model-card${m.isActive ? '' : ' paused'}`}>
       <div className="model-card-head">
         <Link to={`/models/${m.id}`} className="model-name">
-          <span className="make">{m.make}</span> {m.model}
+          {m.hasImage ? <img src={`/api/models/${m.id}/image`} alt="" /> : <span className="noimg" />}
+          <span><span className="make">{m.make}</span> {m.model}</span>
         </Link>
         <StatusBadge model={m} />
       </div>

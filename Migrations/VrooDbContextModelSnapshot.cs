@@ -141,6 +141,25 @@ namespace Vroo.Migrations
                     b.ToTable("DailyStats");
                 });
 
+            modelBuilder.Entity("Vroo.Models.ModelImage", b =>
+                {
+                    b.Property<int>("WatchedModelId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("WatchedModelId");
+
+                    b.ToTable("ModelImages");
+                });
+
             modelBuilder.Entity("Vroo.Models.ScrapeRun", b =>
                 {
                     b.Property<int>("Id")
@@ -256,6 +275,17 @@ namespace Vroo.Migrations
                     b.HasOne("Vroo.Models.WatchedModel", "WatchedModel")
                         .WithMany("DailyStats")
                         .HasForeignKey("WatchedModelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("WatchedModel");
+                });
+
+            modelBuilder.Entity("Vroo.Models.ModelImage", b =>
+                {
+                    b.HasOne("Vroo.Models.WatchedModel", "WatchedModel")
+                        .WithOne()
+                        .HasForeignKey("Vroo.Models.ModelImage", "WatchedModelId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

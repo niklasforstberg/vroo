@@ -17,6 +17,18 @@ public class WatchedModel
     public List<DailyStat> DailyStats { get; set; } = [];
 }
 
+/// <summary>
+/// A small picture of the model for the overview, copied from one listing so it outlives the ad.
+/// Its own table so model lists don't load the bytes.
+/// </summary>
+public class ModelImage
+{
+    public int WatchedModelId { get; set; }
+    public WatchedModel WatchedModel { get; set; } = null!;
+    public required string ContentType { get; set; }
+    public required byte[] Data { get; set; }
+}
+
 /// <summary>One listing on bytbil. Identified by URL, or by registration number when relisted.</summary>
 public class Car
 {

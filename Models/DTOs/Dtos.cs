@@ -19,7 +19,7 @@ public record ScrapeRunResponse(
 
 /// <summary>A watched model with its latest market numbers.</summary>
 public record WatchedModelResponse(
-    int Id, string Make, string Model, bool IsActive,
+    int Id, string Make, string Model, bool IsActive, bool HasImage,
     // "idle", "queued" or "running".
     string Status,
     int? Listings, int? MedianPrice, DateOnly? StatDate,

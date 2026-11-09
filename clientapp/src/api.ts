@@ -56,6 +56,7 @@ export interface WatchedModel {
   make: string
   model: string
   isActive: boolean
+  hasImage: boolean
   status: RunStatus
   listings: number | null
   medianPrice: number | null

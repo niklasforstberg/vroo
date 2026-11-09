@@ -12,12 +12,23 @@ public static class WatchedModelEndpoints
     {
         var api = app.MapGroup("/api").RequireAuthorization();
 
+        // Anonymous: <img> can't send the bearer token, and the picture is public on bytbil anyway.
+        // It never changes once stored, so let the browser keep it.
+        app.MapGet("/api/models/{id:int}/image", async (int id, VrooDbContext db, HttpContext http, CancellationToken ct) =>
+        {
+            var img = await db.ModelImages.FindAsync([id], ct);
+            if (img is null) return Results.NotFound();
+            http.Response.Headers.CacheControl = "public, max-age=604800";
+            return Results.File(img.Data, img.ContentType);
+        });
+
         api.MapGet("/models", async (VrooDbContext db, ScrapeScheduler scheduler, CancellationToken ct) =>
         {
             var models = await db.WatchedModels.OrderBy(w => w.Make).ThenBy(w => w.Model).ToListAsync(ct);
             var stats = (await db.DailyStats.ToListAsync(ct)).ToLookup(s => s.WatchedModelId);
             var lastRuns = await LastRunsAsync(db, ct);
-            return models.Select(w => ToResponse(w, stats[w.Id], lastRuns.GetValueOrDefault(w.Id), scheduler)).ToList();
+            var withImage = (await db.ModelImages.Select(i => i.WatchedModelId).ToListAsync(ct)).ToHashSet();
+            return models.Select(w => ToResponse(w, stats[w.Id], lastRuns.GetValueOrDefault(w.Id), withImage.Contains(w.Id), scheduler)).ToList();
         });
 
         api.MapGet("/models/{id:int}", async (int id, VrooDbContext db, ScrapeScheduler scheduler, CancellationToken ct) =>
@@ -26,8 +37,9 @@ public static class WatchedModelEndpoints
             if (w is null) return Results.NotFound();
             var stats = await db.DailyStats.Where(s => s.WatchedModelId == id).OrderBy(s => s.Date).ToListAsync(ct);
             var lastRun = (await LastRunsAsync(db, ct, id)).GetValueOrDefault(id);
+            var hasImage = await db.ModelImages.AnyAsync(i => i.WatchedModelId == id, ct);
             return Results.Ok(new WatchedModelDetailResponse(
-                ToResponse(w, stats, lastRun, scheduler),
+                ToResponse(w, stats, lastRun, hasImage, scheduler),
                 stats.Select(s => new DailyStatResponse(s.Date, s.Listings, s.MedianPrice, s.MedianMileageMil)).ToList()));
         });
 
@@ -46,7 +58,7 @@ public static class WatchedModelEndpoints
             await db.SaveChangesAsync(ct);
             scheduler.Enqueue(w.Id, "manual"); // fetch right away so the page isn't empty until tomorrow
 
-            return Results.Created($"/api/models/{w.Id}", ToResponse(w, [], null, scheduler));
+            return Results.Created($"/api/models/{w.Id}", ToResponse(w, [], null, false, scheduler));
         });
 
         api.MapPatch("/models/{id:int}", async (int id, WatchedModelUpdateRequest req, VrooDbContext db, CancellationToken ct) =>
@@ -141,7 +153,7 @@ public static class WatchedModelEndpoints
     }
 
     private static WatchedModelResponse ToResponse(
-        WatchedModel w, IEnumerable<DailyStat> stats, ScrapeRunResponse? lastRun, ScrapeScheduler scheduler)
+        WatchedModel w, IEnumerable<DailyStat> stats, ScrapeRunResponse? lastRun, bool hasImage, ScrapeScheduler scheduler)
     {
         var ordered = stats.OrderBy(s => s.Date).ToList();
         var latest = ordered.LastOrDefault();
@@ -151,7 +163,7 @@ public static class WatchedModelEndpoints
         var status = scheduler.CurrentModelId == w.Id ? "running"
             : scheduler.Pending.Contains(w.Id) ? "queued" : "idle";
 
-        return new WatchedModelResponse(w.Id, w.Make, w.Model, w.IsActive, status,
+        return new WatchedModelResponse(w.Id, w.Make, w.Model, w.IsActive, hasImage, status,
             latest?.Listings, latest?.MedianPrice, latest?.Date, monthAgo?.MedianPrice, lastRun);
     }
 }

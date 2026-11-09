@@ -11,6 +11,7 @@ public class VrooDbContext(DbContextOptions<VrooDbContext> options) : DbContext(
     public DbSet<Sighting> Sightings => Set<Sighting>();
     public DbSet<ScrapeRun> ScrapeRuns => Set<ScrapeRun>();
     public DbSet<DailyStat> DailyStats => Set<DailyStat>();
+    public DbSet<ModelImage> ModelImages => Set<ModelImage>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -47,6 +48,14 @@ public class VrooDbContext(DbContextOptions<VrooDbContext> options) : DbContext(
             e.Property(x => x.Trigger).HasMaxLength(20);
             e.HasIndex(x => new { x.WatchedModelId, x.StartedAt });
             e.HasOne(x => x.WatchedModel).WithMany(x => x.Runs).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<ModelImage>(e =>
+        {
+            e.HasKey(x => x.WatchedModelId);
+            e.Property(x => x.ContentType).HasMaxLength(50);
+            e.HasOne(x => x.WatchedModel).WithOne().HasForeignKey<ModelImage>(x => x.WatchedModelId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<DailyStat>(e =>

@@ -31,6 +31,7 @@ public class ScrapeService(VrooDbContext db, BytbilClient bytbil, ILogger<Scrape
         logger.LogInformation("Scraping {Make} {Model} (run {RunId})", watched.Make, watched.Model, run.Id);
 
         var seen = new HashSet<int>();
+        string? imageUrl = null; // candidate picture for the model, if it has none yet
         var today = StockholmDate(run.StartedAt);
         // A second run on the same day must not try to insert the same sightings again.
         var sightedToday = (await db.Sightings
@@ -48,6 +49,7 @@ public class ScrapeService(VrooDbContext db, BytbilClient bytbil, ILogger<Scrape
                     break;
                 }
                 if (listings.Count == 0) break;
+                imageUrl ??= listings.FirstOrDefault(l => l.ImageUrl is not null)?.ImageUrl;
 
                 foreach (var listing in listings)
                     await StoreAsync(watched.Id, listing, run, seen, today, sightedToday, ct);
@@ -59,6 +61,9 @@ public class ScrapeService(VrooDbContext db, BytbilClient bytbil, ILogger<Scrape
             // complete run may set the day's market snapshot.
             if (run.Error is null)
             {
+                if (imageUrl is not null && !await db.ModelImages.AnyAsync(i => i.WatchedModelId == watched.Id, ct)
+                    && await bytbil.GetImageAsync(imageUrl, ct) is var (data, type))
+                    db.ModelImages.Add(new ModelImage { WatchedModelId = watched.Id, Data = data, ContentType = type });
                 await WriteDailyStatAsync(db, watched.Id, today, ct);
                 await db.SaveChangesAsync(ct);
             }

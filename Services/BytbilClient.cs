@@ -100,6 +100,29 @@ public partial class BytbilClient(HttpClient http, ILogger<BytbilClient> logger)
         return result;
     }
 
+    /// <summary>A listing's thumbnail (about 320×213, 15 KB), or null if it couldn't be fetched.</summary>
+    public async Task<(byte[] Data, string ContentType)?> GetImageAsync(string url, CancellationToken ct)
+    {
+        await HumanLikeDelayAsync(ct);
+        try
+        {
+            using var response = await http.GetAsync(url, ct);
+            var type = response.Content.Headers.ContentType?.MediaType;
+            if (!response.IsSuccessStatusCode || type is null || !type.StartsWith("image/"))
+            {
+                logger.LogWarning("Image request returned {Status} {Type} for {Url}", (int)response.StatusCode, type, url);
+                return null;
+            }
+            var data = await response.Content.ReadAsByteArrayAsync(ct);
+            return data.Length is > 0 and <= 1_000_000 ? (data, type) : null;
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning(ex, "Image request failed: {Url}", url);
+            return null;
+        }
+    }
+
     private async Task<string?> GetHtmlAsync(string url, CancellationToken ct)
     {
         await HumanLikeDelayAsync(ct);
