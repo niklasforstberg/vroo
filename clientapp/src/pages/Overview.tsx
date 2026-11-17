@@ -14,6 +14,7 @@ export default function Overview() {
     refetchInterval: q => (q.state.data?.some(m => m.status !== 'idle') ? 4000 : false),
   })
   const invalidate = () => qc.invalidateQueries({ queryKey: ['models'] })
+  const me = useQuery({ queryKey: ['me'], queryFn: api.me, staleTime: Infinity })
   const runAll = useMutation({ mutationFn: api.runAll, onSuccess: invalidate })
   const anyActive = models.data?.some(m => m.isActive)
 
@@ -24,7 +25,9 @@ export default function Overview() {
           <h1>Bevakningar</h1>
           <p className="muted">Aktiva modeller hämtas från bytbil varje natt kl 03.</p>
         </div>
-        <button onClick={() => runAll.mutate()} disabled={!anyActive || runAll.isPending}>Hämta alla nu</button>
+        {me.data?.isAdmin && (
+          <button onClick={() => runAll.mutate()} disabled={!anyActive || runAll.isPending}>Hämta alla nu</button>
+        )}
       </div>
 
       <AddModelForm onAdded={invalidate} />
@@ -45,23 +48,29 @@ export default function Overview() {
 function AddModelForm({ onAdded }: { onAdded: () => void }) {
   const [make, setMake] = useState('')
   const [model, setModel] = useState('')
+  // Models others already watch, as suggestions; picking one gives the full history right away.
+  const catalog = useQuery({ queryKey: ['catalog'], queryFn: api.catalog })
+  const makes = [...new Set(catalog.data?.map(c => c.make))]
+  const models = catalog.data?.filter(c => c.make.toLowerCase() === make.trim().toLowerCase()).map(c => c.model) ?? []
   const add = useMutation({
     mutationFn: () => api.addModel(make, model),
-    onSuccess: () => { setMake(''); setModel(''); onAdded() },
+    onSuccess: () => { setMake(''); setModel(''); onAdded(); catalog.refetch() },
   })
 
   return (
     <form className="card add-form" onSubmit={e => { e.preventDefault(); add.mutate() }}>
       <label>
         Märke
-        <input value={make} onChange={e => setMake(e.target.value)} placeholder="Tesla" />
+        <input value={make} onChange={e => setMake(e.target.value)} placeholder="Tesla" list="catalog-makes" />
+        <datalist id="catalog-makes">{makes.map(m => <option key={m} value={m} />)}</datalist>
       </label>
       <label>
         Modell
-        <input value={model} onChange={e => setModel(e.target.value)} placeholder="Model Y" />
+        <input value={model} onChange={e => setModel(e.target.value)} placeholder="Model Y" list="catalog-models" />
+        <datalist id="catalog-models">{models.map(m => <option key={m} value={m} />)}</datalist>
       </label>
       <button className="primary" disabled={!make.trim() || !model.trim() || add.isPending}>Lägg till</button>
-      <p className="hint">Stava som i bytbils filter, t.ex. <i>Mercedes-Benz</i> / <i>S-Klass</i>. Första hämtningen startar direkt.</p>
+      <p className="hint">Stava som i bytbils filter, t.ex. <i>Mercedes-Benz</i> / <i>S-Klass</i>. Modeller som någon redan bevakar föreslås och kommer med hela sin historik; nya hämtas direkt.</p>
       {add.error && <p className="error">{add.error instanceof ApiError ? add.error.message : 'Kunde inte lägga till.'}</p>}
     </form>
   )
@@ -70,7 +79,7 @@ function AddModelForm({ onAdded }: { onAdded: () => void }) {
 function ModelCard({ m, onChange }: { m: WatchedModel; onChange: () => void }) {
   const run = useMutation({ mutationFn: () => api.runModel(m.id), onSuccess: onChange })
   const toggle = useMutation({ mutationFn: () => api.setActive(m.id, !m.isActive), onSuccess: onChange })
-  const remove = useMutation({ mutationFn: () => api.deleteModel(m.id), onSuccess: onChange })
+  const remove = useMutation({ mutationFn: () => api.unfollow(m.id), onSuccess: onChange })
   const change = pct(m.medianPrice30DaysAgo, m.medianPrice)
 
   return (
@@ -111,9 +120,9 @@ function ModelCard({ m, onChange }: { m: WatchedModel; onChange: () => void }) {
           <button className="link" onClick={() => toggle.mutate()}>{m.isActive ? 'Pausa' : 'Aktivera'}</button>
           <button
             className="link danger"
-            onClick={() => window.confirm(`Ta bort ${m.make} ${m.model} och all dess historik?`) && remove.mutate()}
+            onClick={() => window.confirm(`Sluta bevaka ${m.make} ${m.model}?`) && remove.mutate()}
           >
-            Ta bort
+            Sluta bevaka
           </button>
         </span>
       </div>

@@ -19,7 +19,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   if (init.body) headers.set('Content-Type', 'application/json')
 
   const res = await fetch(path, { ...init, headers })
-  if (res.status === 401 && !path.endsWith('/login')) {
+  if (res.status === 401 && !path.startsWith('/api/auth/')) {
     setToken(null)
     window.location.assign('/login')
   }
@@ -65,6 +65,30 @@ export interface WatchedModel {
   lastRun: ScrapeRun | null
 }
 
+export interface Me {
+  email: string
+  isAdmin: boolean
+}
+
+export interface AdminUser {
+  id: number
+  email: string
+  isAdmin: boolean
+  createdAt: string
+  lastSeenAt: string | null
+  verified: boolean
+  models: number
+}
+
+export interface AdminModel {
+  id: number
+  make: string
+  model: string
+  followers: number
+  activeFollowers: number
+  cars: number
+}
+
 export interface DailyStat {
   date: string
   listings: number
@@ -100,18 +124,34 @@ export interface CarDetail {
 }
 
 export const api = {
-  login: (password: string) =>
-    apiFetch<{ token: string }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ password }) }),
+  login: (email: string, password: string) =>
+    apiFetch<{ token: string }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  register: (email: string, password: string) =>
+    apiFetch<void>('/api/auth/register', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  verifyEmail: (email: string, token: string) =>
+    apiFetch<{ alreadyVerified?: boolean } | undefined>('/api/auth/verify-email', { method: 'POST', body: JSON.stringify({ email, token }) }),
+  resendVerification: (email: string) =>
+    apiFetch<void>('/api/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) }),
+  forgotPassword: (email: string) =>
+    apiFetch<void>('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (email: string, token: string, newPassword: string) =>
+    apiFetch<{ token: string }>('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ email, token, newPassword }) }),
+  me: () => apiFetch<Me>('/api/me'),
+  catalog: () => apiFetch<{ make: string; model: string }[]>('/api/catalog'),
   models: () => apiFetch<WatchedModel[]>('/api/models'),
   model: (id: number) => apiFetch<{ model: WatchedModel; stats: DailyStat[] }>(`/api/models/${id}`),
   cars: (id: number) => apiFetch<Car[]>(`/api/models/${id}/cars`),
   car: (id: number) => apiFetch<CarDetail>(`/api/cars/${id}`),
   runs: () => apiFetch<ScrapeRun[]>('/api/runs'),
   addModel: (make: string, model: string) =>
-    apiFetch<WatchedModel>('/api/models', { method: 'POST', body: JSON.stringify({ make, model }) }),
+    apiFetch<{ id: number }>('/api/models', { method: 'POST', body: JSON.stringify({ make, model }) }),
   setActive: (id: number, isActive: boolean) =>
     apiFetch<void>(`/api/models/${id}`, { method: 'PATCH', body: JSON.stringify({ isActive }) }),
-  deleteModel: (id: number) => apiFetch<void>(`/api/models/${id}`, { method: 'DELETE' }),
+  unfollow: (id: number) => apiFetch<void>(`/api/models/${id}`, { method: 'DELETE' }),
   runModel: (id: number) => apiFetch<void>(`/api/models/${id}/run`, { method: 'POST' }),
   runAll: () => apiFetch<void>('/api/models/run-all', { method: 'POST' }),
+  adminUsers: () => apiFetch<AdminUser[]>('/api/admin/users'),
+  deleteUser: (id: number) => apiFetch<void>(`/api/admin/users/${id}`, { method: 'DELETE' }),
+  adminModels: () => apiFetch<AdminModel[]>('/api/admin/models'),
+  deleteModel: (id: number) => apiFetch<void>(`/api/admin/models/${id}`, { method: 'DELETE' }),
 }

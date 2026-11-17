@@ -63,13 +63,17 @@ public static partial class SqliteImporter
         }
 
         // --- watched models ---------------------------------------------------
+        // Imported models are followed by the admin, paused.
+        var admin = await db.Users.OrderBy(u => u.Id).FirstOrDefaultAsync(u => u.IsAdmin)
+            ?? throw new InvalidOperationException("No admin user; set Auth:AdminEmail and start the app once first");
         var models = new Dictionary<(string, string), WatchedModel>();
         foreach (var key in oldCars.Select(c => (c.Make, c.Model)).Distinct())
         {
             var wm = await db.WatchedModels.FirstOrDefaultAsync(w => w.Make == key.Make && w.Model == key.Model)
                 ?? db.WatchedModels.Add(new WatchedModel
                 {
-                    Make = key.Make, Model = key.Model, IsActive = false, CreatedAt = DateTime.UtcNow,
+                    Make = key.Make, Model = key.Model, CreatedAt = DateTime.UtcNow,
+                    Subscriptions = [new Subscription { UserId = admin.Id, IsActive = false, CreatedAt = DateTime.UtcNow }],
                 }).Entity;
             models[key] = wm;
         }

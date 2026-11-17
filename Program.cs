@@ -36,11 +36,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = "vroo",
             IssuerSigningKey = AuthEndpoints.SigningKey(builder.Configuration),
         };
+        options.Events = new JwtBearerEvents { OnTokenValidated = AuthEndpoints.ValidateUserAsync };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorizationBuilder().AddPolicy("admin", p => p.RequireRole("admin"));
 
 // Behind Caddy + Cloudflare: take the visitor's IP from the forwarded header so the
-// login rate limit is per visitor, not per proxy.
+// auth rate limit is per visitor, not per proxy.
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
     o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -50,8 +51,9 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddPolicy("login", context => RateLimitPartition.GetFixedWindowLimiter(
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+    // 5 per minute per visitor and endpoint (login, register, forgot-password, ...).
+    options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
+        $"{context.Connection.RemoteIpAddress}|{context.Request.Path}",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(1) }));
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
@@ -69,6 +71,7 @@ builder.Services.AddHttpClient<BytbilClient>(c =>
     c.DefaultRequestHeaders.Referrer = new Uri("https://www.bytbil.com/");
 });
 builder.Services.AddScoped<ScrapeService>();
+builder.Services.AddScoped<EmailService>();
 builder.Services.AddSingleton<ScrapeScheduler>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ScrapeScheduler>());
 
@@ -80,6 +83,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<VrooDbContext>();
     db.Database.Migrate();
+    await AdminBootstrap.RunAsync(db, app.Configuration, app.Logger);
 
     // One-off: `dotnet Vroo.dll import /path/to/cars.db`
     if (args is ["import", var path])
@@ -99,6 +103,7 @@ app.UseAuthorization();
 
 app.MapAuthEndpoints();
 app.MapWatchedModelEndpoints();
+app.MapAdminEndpoints();
 app.MapHealthChecks("/health");
 app.MapFallbackToFile("index.html");
 

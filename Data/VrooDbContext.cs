@@ -5,6 +5,8 @@ namespace Vroo.Data;
 
 public class VrooDbContext(DbContextOptions<VrooDbContext> options) : DbContext(options)
 {
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<WatchedModel> WatchedModels => Set<WatchedModel>();
     public DbSet<Car> Cars => Set<Car>();
     public DbSet<CarPrice> CarPrices => Set<CarPrice>();
@@ -15,6 +17,22 @@ public class VrooDbContext(DbContextOptions<VrooDbContext> options) : DbContext(
 
     protected override void OnModelCreating(ModelBuilder b)
     {
+        b.Entity<User>(e =>
+        {
+            e.Property(x => x.Email).HasMaxLength(254);
+            e.HasIndex(x => x.Email).IsUnique();
+            e.Property(x => x.VerificationTokenHash).HasMaxLength(64);
+            e.Property(x => x.ResetTokenHash).HasMaxLength(64);
+        });
+
+        b.Entity<Subscription>(e =>
+        {
+            e.HasKey(x => new { x.UserId, x.WatchedModelId });
+            e.HasIndex(x => x.WatchedModelId);
+            e.HasOne(x => x.User).WithMany(x => x.Subscriptions).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.WatchedModel).WithMany(x => x.Subscriptions).OnDelete(DeleteBehavior.Cascade);
+        });
+
         b.Entity<WatchedModel>(e =>
         {
             e.Property(x => x.Make).HasMaxLength(100);

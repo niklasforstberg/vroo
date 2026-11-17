@@ -1,6 +1,48 @@
 namespace Vroo.Models;
 
-/// <summary>A make/model the user wants tracked on bytbil.com.</summary>
+/// <summary>
+/// Someone who can log in. Accounts are created by open signup and must verify their email
+/// before logging in; the admin is created from configuration at startup (AdminBootstrap).
+/// </summary>
+public class User
+{
+    public int Id { get; set; }
+    /// <summary>Trimmed and lower-cased, so lookups are exact matches.</summary>
+    public required string Email { get; set; }
+    public required string PasswordHash { get; set; }
+    public bool IsAdmin { get; set; }
+    public DateTime CreatedAt { get; set; }
+    /// <summary>Last successful login.</summary>
+    public DateTime? LastSeenAt { get; set; }
+    /// <summary>JWTs issued before this are rejected, so a password reset logs out other devices.</summary>
+    public DateTime PasswordChangedAt { get; set; }
+
+    public DateTime? EmailVerifiedAt { get; set; }
+    /// <summary>SHA-256 of the token in the emailed link; the token itself is never stored.</summary>
+    public string? VerificationTokenHash { get; set; }
+    public DateTime? VerificationTokenExpiry { get; set; }
+    public string? ResetTokenHash { get; set; }
+    public DateTime? ResetTokenExpiry { get; set; }
+
+    public List<Subscription> Subscriptions { get; set; } = [];
+}
+
+/// <summary>A user follows a watched model. The model is scraped while at least one subscription is active.</summary>
+public class Subscription
+{
+    public int UserId { get; set; }
+    public User User { get; set; } = null!;
+    public int WatchedModelId { get; set; }
+    public WatchedModel WatchedModel { get; set; } = null!;
+    /// <summary>The user's pause toggle; paused subscriptions don't keep the model scraped.</summary>
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; }
+}
+
+/// <summary>
+/// A make/model tracked on bytbil.com, shared by everyone who follows it. Kept with its history
+/// when the last follower leaves; only the admin deletes it.
+/// </summary>
 public class WatchedModel
 {
     public int Id { get; set; }
@@ -8,10 +50,9 @@ public class WatchedModel
     public required string Make { get; set; }
     /// <summary>As bytbil spells it in the Models parameter, e.g. "Model Y", "S-Klass".</summary>
     public required string Model { get; set; }
-    /// <summary>Paused models are kept with their history but skipped by the daily run.</summary>
-    public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; }
 
+    public List<Subscription> Subscriptions { get; set; } = [];
     public List<Car> Cars { get; set; } = [];
     public List<ScrapeRun> Runs { get; set; } = [];
     public List<DailyStat> DailyStats { get; set; } = [];

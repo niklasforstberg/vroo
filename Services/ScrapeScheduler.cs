@@ -4,7 +4,7 @@ using Vroo.Data;
 
 namespace Vroo.Services;
 
-// Runs all active watched models once a day (Scrape:DailyAt, Stockholm time) and
+// Runs all watched models with an active subscription once a day (Scrape:DailyAt, Stockholm time) and
 // executes manual requests from the UI. Everything goes through one queue so bytbil
 // never sees two scrapes at once.
 public class ScrapeScheduler(
@@ -40,7 +40,7 @@ public class ScrapeScheduler(
     {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<VrooDbContext>();
-        var ids = await db.WatchedModels.Where(w => w.IsActive).OrderBy(w => w.Id).Select(w => w.Id).ToListAsync(ct);
+        var ids = await db.WatchedModels.Where(w => w.Subscriptions.Any(s => s.IsActive)).OrderBy(w => w.Id).Select(w => w.Id).ToListAsync(ct);
         foreach (var id in ids) Enqueue(id, trigger);
     }
 

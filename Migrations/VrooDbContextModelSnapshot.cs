@@ -216,7 +216,28 @@ namespace Vroo.Migrations
                     b.ToTable("Sightings");
                 });
 
-            modelBuilder.Entity("Vroo.Models.WatchedModel", b =>
+            modelBuilder.Entity("Vroo.Models.Subscription", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("WatchedModelId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("UserId", "WatchedModelId");
+
+                    b.HasIndex("WatchedModelId");
+
+                    b.ToTable("Subscriptions");
+                });
+
+            modelBuilder.Entity("Vroo.Models.User", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -227,8 +248,59 @@ namespace Vroo.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<bool>("IsActive")
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<DateTime?>("EmailVerifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsAdmin")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("PasswordChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ResetTokenExpiry")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ResetTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("VerificationTokenExpiry")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VerificationTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("Vroo.Models.WatchedModel", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Make")
                         .IsRequired()
@@ -314,11 +386,35 @@ namespace Vroo.Migrations
                     b.Navigation("Car");
                 });
 
+            modelBuilder.Entity("Vroo.Models.Subscription", b =>
+                {
+                    b.HasOne("Vroo.Models.User", "User")
+                        .WithMany("Subscriptions")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Vroo.Models.WatchedModel", "WatchedModel")
+                        .WithMany("Subscriptions")
+                        .HasForeignKey("WatchedModelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+
+                    b.Navigation("WatchedModel");
+                });
+
             modelBuilder.Entity("Vroo.Models.Car", b =>
                 {
                     b.Navigation("Prices");
 
                     b.Navigation("Sightings");
+                });
+
+            modelBuilder.Entity("Vroo.Models.User", b =>
+                {
+                    b.Navigation("Subscriptions");
                 });
 
             modelBuilder.Entity("Vroo.Models.WatchedModel", b =>
@@ -328,6 +424,8 @@ namespace Vroo.Migrations
                     b.Navigation("DailyStats");
 
                     b.Navigation("Runs");
+
+                    b.Navigation("Subscriptions");
                 });
 #pragma warning restore 612, 618
         }

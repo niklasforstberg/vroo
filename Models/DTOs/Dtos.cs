@@ -1,7 +1,18 @@
 namespace Vroo.Models.DTOs;
 
-/// <summary>Login with the single admin password.</summary>
-public record LoginRequest(string Password);
+public record LoginRequest(string Email, string Password);
+
+public record RegisterRequest(string Email, string Password);
+
+/// <summary>Token and email from a verification or reset link.</summary>
+public record TokenRequest(string Email, string Token);
+
+public record EmailRequest(string Email);
+
+public record ResetPasswordRequest(string Email, string Token, string NewPassword);
+
+/// <summary>The logged-in user.</summary>
+public record MeResponse(string Email, bool IsAdmin);
 
 /// <summary>JWT for the SPA.</summary>
 public record LoginResponse(string Token, DateTime ExpiresAt);
@@ -9,7 +20,7 @@ public record LoginResponse(string Token, DateTime ExpiresAt);
 /// <summary>Start watching a make/model, spelled as on bytbil.</summary>
 public record WatchedModelCreateRequest(string Make, string Model);
 
-/// <summary>Pause or resume the daily scrape for a model.</summary>
+/// <summary>Pause or resume the user's subscription to a model.</summary>
 public record WatchedModelUpdateRequest(bool IsActive);
 
 /// <summary>Outcome of one scrape.</summary>
@@ -19,6 +30,7 @@ public record ScrapeRunResponse(
 
 /// <summary>A watched model with its latest market numbers.</summary>
 public record WatchedModelResponse(
+    // IsActive: the current user's subscription is active (false if they don't follow it).
     int Id, string Make, string Model, bool IsActive, bool HasImage,
     // "idle", "queued" or "running".
     string Status,
@@ -49,3 +61,13 @@ public record CarPriceResponse(int Price, DateTime ObservedAt);
 
 /// <summary>A listing with its full price history.</summary>
 public record CarDetailResponse(CarResponse Car, string? Color, string? BodyType, List<CarPriceResponse> Prices);
+
+/// <summary>A make/model someone already watches, offered as a suggestion when adding.</summary>
+public record CatalogEntry(string Make, string Model);
+
+/// <summary>A user in the admin list.</summary>
+public record AdminUserResponse(
+    int Id, string Email, bool IsAdmin, DateTime CreatedAt, DateTime? LastSeenAt, bool Verified, int Models);
+
+/// <summary>A watched model in the admin list, with how many follow it.</summary>
+public record AdminModelResponse(int Id, string Make, string Model, int Followers, int ActiveFollowers, int Cars);
