@@ -51,7 +51,7 @@ Dev-databas: `vroo_dev` (owner `vroo`) på z390, nås via Tailscale. `Scrape:Ena
 
 ## Deployment
 
-antec, container `vroo` på `127.0.0.1:5106`, env i `/home/deploy/.env.vroo`, `vroo.forstberg.net` via Caddy. Push till `main` → runner kör `deploy.sh`.
+antec, container `vroo` på `127.0.0.1:5107`, env i `/home/deploy/.env.vroo`, `vroo.forstberg.net` via Caddy. Push till `main` → runner kör `deploy.sh`.
 
 Engångsimport i produktion:
 ```bash
