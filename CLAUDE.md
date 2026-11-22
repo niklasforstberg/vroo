@@ -40,7 +40,7 @@ Dev-databas: `vroo_dev` (owner `vroo`) på z390, nås via Tailscale. `Scrape:Ena
 
 | Nyckel | Innehåll |
 |---|---|
-| `DefaultConnection` | `Host=postgres;Port=5432;Database=vroo;Username=vroo;Password=…` |
+| `ConnectionStrings__DefaultConnection` | `Host=postgres;Port=5432;Database=vroo;Username=vroo;Password=…` |
 | `Auth__AdminEmail` | admins e-post (skapar kontot vid första start) |
 | `Auth__Password` | admins startlösenord |
 | `Email__Smtp__Host`, `Email__Smtp__Port` (465), `Email__Smtp__Username`, `Email__Smtp__Password`, `Email__From` | utgående mejl för verifiering/återställning |
