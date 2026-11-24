@@ -70,6 +70,7 @@ export default function ModelPage() {
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: 'firstSeenAt', desc: true })
   const [selected, setSelected] = useState<number | null>(null)
+  const [hiddenYears, setHiddenYears] = useState<Set<number | null>>(new Set())
 
   const listed = useMemo(() => cars.data?.filter(c => c.isListed) ?? [], [cars.data])
   // Leasing amounts and placeholders would wreck the price range and the scatter's y-axis.
@@ -91,9 +92,16 @@ export default function ModelPage() {
 
   const { model: m, stats } = detail.data
   const change = pct(m.medianPrice30DaysAgo, m.medianPrice)
-  const scatter = priced.filter(c => c.mileageMil != null).map(c => ({
+  const withMileage = priced.filter(c => c.mileageMil != null)
+  const scatterYears = [...new Set(withMileage.map(c => c.year))].sort((a, b) => (a ?? 0) - (b ?? 0))
+  const scatter = withMileage.filter(c => !hiddenYears.has(c.year)).map(c => ({
     id: c.id, mileage: c.mileageMil!, price: c.price, title: c.title, year: c.year,
   }))
+  const toggleYear = (y: number | null) => setHiddenYears(h => {
+    const next = new Set(h)
+    if (!next.delete(y)) next.add(y)
+    return next
+  })
   const years = byYear(priced)
   const market = timeOnMarket(cars.data ?? [], stats.map(s => s.date))
   const th = (key: SortKey, label: string) => (
@@ -153,9 +161,17 @@ export default function ModelPage() {
         <div className="card empty">Trenddiagrammen visas när det finns data från minst två dagar.</div>
       )}
 
-      {scatter.length > 0 && (
+      {withMileage.length > 0 && (
         <section className="card">
           <h2>Pris mot miltal <span className="muted small">· {scatter.length} bilar till salu, klicka för detaljer</span></h2>
+          {scatterYears.length > 1 && (
+            <div className="year-filter">
+              {scatterYears.map(y => (
+                <button key={y ?? 'none'} className={hiddenYears.has(y) ? '' : 'on'} onClick={() => toggleYear(y)}>{y ?? 'Okänt år'}</button>
+              ))}
+              {hiddenYears.size > 0 && <button className="link" onClick={() => setHiddenYears(new Set())}>Visa alla</button>}
+            </div>
+          )}
           <PriceMileageChart data={scatter} onSelect={setSelected} />
         </section>
       )}

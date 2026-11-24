@@ -138,6 +138,9 @@ section.card, .chart-row, .tiles, .card.empty, .add-form { margin-bottom: 16px; 
 .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .segmented button { border: none; border-radius: 0; background: none; color: var(--text-muted); }
 .segmented button.on { background: var(--badge-bg); color: var(--text); }
+.year-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.year-filter button { padding: 2px 10px; font-size: 13px; background: none; color: var(--text-muted); }
+.year-filter button.on { background: var(--badge-bg); color: var(--text); }
 
 .table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
